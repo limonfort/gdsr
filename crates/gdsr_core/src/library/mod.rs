@@ -1,18 +1,17 @@
 use std::{collections::HashMap, io};
 
 use crate::{
-    CoordNum, DatabaseIntegerUnit,
     cell::Cell,
     utils::io::{from_gds, write_gds},
 };
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Library<DatabaseUnitT: CoordNum = DatabaseIntegerUnit> {
+pub struct Library {
     pub name: String,
-    pub cells: HashMap<String, Cell<DatabaseUnitT>>,
+    pub cells: HashMap<String, Cell>,
 }
 
-impl<DatabaseUnitT: CoordNum> Library<DatabaseUnitT> {
+impl Library {
     #[must_use]
     pub fn new(name: &str) -> Self {
         Self {
@@ -21,24 +20,24 @@ impl<DatabaseUnitT: CoordNum> Library<DatabaseUnitT> {
         }
     }
 
-    pub fn add(&mut self, cell: Cell<DatabaseUnitT>) {
-        self.cells.insert(cell.name.clone(), cell);
+    pub fn add(&mut self, cell: Cell) {
+        self.cells.insert(cell.name().to_string(), cell);
     }
 
-    pub fn remove(&mut self, cells: Vec<Cell<DatabaseUnitT>>) {
+    pub fn remove(&mut self, cells: Vec<Cell>) {
         for cell in cells {
-            self.cells.remove(&cell.name);
+            self.cells.remove(cell.name());
         }
     }
 
     #[must_use]
-    pub fn get_cell(&self, name: &str) -> Option<&Cell<DatabaseUnitT>> {
+    pub fn get_cell(&self, name: &str) -> Option<&Cell> {
         self.cells.get(name)
     }
 
     #[must_use]
-    pub fn contains(&self, cell: &Cell<DatabaseUnitT>) -> bool {
-        self.cells.contains_key(&cell.name)
+    pub fn contains(&self, cell: &Cell) -> bool {
+        self.cells.contains_key(cell.name())
     }
 
     pub fn to_gds(&self, file_name: &str, user_units: f64, database_units: f64) -> io::Result<()> {
@@ -51,12 +50,12 @@ impl<DatabaseUnitT: CoordNum> Library<DatabaseUnitT> {
         )
     }
 
-    pub fn from_gds(file_name: &str) -> io::Result<Self> {
-        from_gds(file_name.to_string())
+    pub fn from_gds(file_name: &str, units: Option<f64>) -> io::Result<Self> {
+        from_gds(file_name.to_string(), units)
     }
 }
 
-impl<T: CoordNum> std::fmt::Display for Library<T> {
+impl std::fmt::Display for Library {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "Library '{}' with {} cells", self.name, self.cells.len())
     }

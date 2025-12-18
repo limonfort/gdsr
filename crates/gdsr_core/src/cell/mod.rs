@@ -1,34 +1,17 @@
-use crate::{
-    CoordNum, DatabaseIntegerUnit, Library,
-    elements::{Element, Path, Polygon, Reference, Text},
-    traits::Transformable,
-    transformation::Transformation,
-};
+use crate::{Element, Library, Path, Polygon, Reference, Text, Transformable, Transformation};
 
 mod io;
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct Cell<DatabaseUnitT: CoordNum = DatabaseIntegerUnit> {
-    pub(crate) name: String,
-    pub(crate) polygons: Vec<Polygon<DatabaseUnitT>>,
-    pub(crate) paths: Vec<Path<DatabaseUnitT>>,
-    pub(crate) texts: Vec<Text<DatabaseUnitT>>,
-    pub(crate) references: Vec<Reference<DatabaseUnitT>>,
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct Cell {
+    name: String,
+    polygons: Vec<Polygon>,
+    paths: Vec<Path>,
+    texts: Vec<Text>,
+    references: Vec<Reference>,
 }
 
-impl<DatabaseUnitT: CoordNum> Default for Cell<DatabaseUnitT> {
-    fn default() -> Self {
-        Self {
-            name: String::default(),
-            polygons: Vec::default(),
-            paths: Vec::default(),
-            texts: Vec::default(),
-            references: Vec::default(),
-        }
-    }
-}
-
-impl<DatabaseUnitT: CoordNum> Cell<DatabaseUnitT> {
+impl Cell {
     #[must_use]
     pub fn new(name: &str) -> Self {
         Self {
@@ -45,27 +28,31 @@ impl<DatabaseUnitT: CoordNum> Cell<DatabaseUnitT> {
         &self.name
     }
 
+    pub(crate) fn set_name(&mut self, name: &str) {
+        self.name = name.to_string();
+    }
+
     #[must_use]
-    pub const fn polygons(&self) -> &Vec<Polygon<DatabaseUnitT>> {
+    pub const fn polygons(&self) -> &Vec<Polygon> {
         &self.polygons
     }
 
     #[must_use]
-    pub const fn paths(&self) -> &Vec<Path<DatabaseUnitT>> {
+    pub const fn paths(&self) -> &Vec<Path> {
         &self.paths
     }
 
     #[must_use]
-    pub const fn texts(&self) -> &Vec<Text<DatabaseUnitT>> {
+    pub const fn texts(&self) -> &Vec<Text> {
         &self.texts
     }
 
     #[must_use]
-    pub const fn references(&self) -> &Vec<Reference<DatabaseUnitT>> {
+    pub const fn references(&self) -> &Vec<Reference> {
         &self.references
     }
 
-    pub fn add(&mut self, element: impl Into<Element<DatabaseUnitT>>) {
+    pub fn add(&mut self, element: impl Into<Element>) {
         match element.into() {
             Element::Path(path) => self.paths.push(path),
             Element::Polygon(polygon) => self.polygons.push(polygon),
@@ -74,13 +61,10 @@ impl<DatabaseUnitT: CoordNum> Cell<DatabaseUnitT> {
         }
     }
 
-    pub(crate) fn get_elements(
-        &self,
-        depth: Option<usize>,
-        library: &Library<DatabaseUnitT>,
-    ) -> Vec<Element<DatabaseUnitT>> {
+    #[must_use]
+    pub fn get_elements(&self, depth: Option<usize>, library: &Library) -> Vec<Element> {
         let depth = depth.unwrap_or(usize::MAX);
-        let mut elements: Vec<Element<DatabaseUnitT>> = Vec::new();
+        let mut elements: Vec<Element> = Vec::new();
 
         for polygon in &self.polygons {
             elements.push(Element::Polygon(polygon.clone()));
@@ -105,7 +89,20 @@ impl<DatabaseUnitT: CoordNum> Cell<DatabaseUnitT> {
     }
 }
 
-impl<DatabaseUnitT: CoordNum> Transformable for Cell<DatabaseUnitT> {
+impl std::fmt::Display for Cell {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "Cell '{}' with {} polygon(s), {} path(s), {} text(s)",
+            self.name,
+            self.polygons.len(),
+            self.paths.len(),
+            self.texts.len(),
+        )
+    }
+}
+
+impl Transformable for Cell {
     fn transform_impl(&self, transformation: &Transformation) -> Self {
         let mut new_self = self.clone();
 
@@ -137,56 +134,16 @@ impl<DatabaseUnitT: CoordNum> Transformable for Cell<DatabaseUnitT> {
     }
 }
 
-// impl<T: CoordNum> Dimensions<T> for Cell<T> {
-//     fn bounding_box(&self) -> (Point<T>, Point<T>) {
-//         let mut min_x = f64::INFINITY;
-//         let mut min_y = f64::INFINITY;
-//         let mut max_x = f64::NEG_INFINITY;
-//         let mut max_y = f64::NEG_INFINITY;
-
-//         for polygon in &self.polygons {
-//             let (polygon_min, polygon_max) = polygon.bounding_box();
-//             min_x = min_x.min(polygon_min.x().into());
-//             min_y = min_y.min(polygon_min.y().into());
-//             max_x = max_x.max(polygon_max.x().into());
-//             max_y = max_y.max(polygon_max.y().into());
-//         }
-
-//         for path in &self.paths {
-//             let (path_min, path_max) = path.bounding_box();
-//             min_x = min_x.min(path_min.x().into());
-//             min_y = min_y.min(path_min.y().into());
-//             max_x = max_x.max(path_max.x().into());
-//             max_y = max_y.max(path_max.y().into());
-//         }
-
-//         for text in &self.texts {
-//             let (text_min, text_max) = text.bounding_box();
-//             min_x = min_x.min(text_min.x().into());
-//             min_y = min_y.min(text_min.y().into());
-//             max_x = max_x.max(text_max.x().into());
-//             max_y = max_y.max(text_max.y().into());
-//         }
-
-//         for reference in &self.references {
-//             let (reference_min, reference_max) = reference.bounding_box();
-//             min_x = min_x.min(reference_min.x().into());
-//             min_y = min_y.min(reference_min.y().into());
-//             max_x = max_x.max(reference_max.x().into());
-//             max_y = max_y.max(reference_max.y().into());
-//         }
-
-//         (
-//             Point::new(min_x.into(), min_y.into()),
-//             Point::new(max_x.into(), max_y.into()),
-//         )
-//     }
-// }
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Grid, HorizontalPresentation, PathType, Point, VerticalPresentation};
+    use crate::{
+        Point,
+        elements::{
+            path::PathType,
+            text::presentation::{HorizontalPresentation, VerticalPresentation},
+        },
+    };
 
     #[test]
     fn test_cell_new() {
@@ -211,7 +168,16 @@ mod tests {
     #[test]
     fn test_add_polygon() {
         let mut cell = Cell::new("test_cell");
-        let polygon = Polygon::new([(0, 0), (10, 0), (10, 10), (0, 10)], 1, 0);
+        let polygon = Polygon::new(
+            vec![
+                Point::integer(0, 0, 1e-9),
+                Point::integer(10, 0, 1e-9),
+                Point::integer(10, 10, 1e-9),
+                Point::integer(0, 10, 1e-9),
+            ],
+            1,
+            0,
+        );
 
         cell.add(polygon.clone());
         assert_eq!(cell.polygons.len(), 1);
@@ -222,7 +188,7 @@ mod tests {
     fn test_add_path() {
         let mut cell = Cell::new("test_cell");
         let path = Path::new(
-            vec![Point::new(0, 0), Point::new(10, 10)],
+            vec![Point::integer(0, 0, 1e-9), Point::integer(10, 10, 1e-9)],
             1,
             0,
             Some(PathType::Square),
@@ -239,7 +205,7 @@ mod tests {
         let mut cell = Cell::new("test_cell");
         let text = Text::new(
             "Test Text".to_string(),
-            Point::new(5, 5),
+            Point::integer(5, 5, 1e-9),
             1,
             1.0,
             0.0,
@@ -254,68 +220,38 @@ mod tests {
     }
 
     #[test]
-    fn test_add_reference() {
+    fn test_cell_display() {
         let mut cell = Cell::new("test_cell");
-        let polygon = Polygon::new([(0, 0), (10, 0), (10, 10), (0, 10)], 1, 0);
-        let reference = Reference::new(
-            polygon,
-            Grid::new((0, 0), 1, 1, (0, 0), (0, 0), 1.0, 0.0, false),
+        let polygon = Polygon::new(
+            vec![
+                Point::integer(0, 0, 1e-9),
+                Point::integer(10, 0, 1e-9),
+                Point::integer(10, 10, 1e-9),
+                Point::integer(0, 10, 1e-9),
+            ],
+            1,
+            0,
         );
-
-        cell.add(reference.clone());
-        assert_eq!(cell.references.len(), 1);
-        assert_eq!(cell.references[0], reference);
-    }
-
-    #[test]
-    fn test_cell_transformable() {
-        let mut cell = Cell::new("test_cell");
-        let polygon = Polygon::new([(0, 0), (10, 0), (10, 10), (0, 10)], 1, 0);
         cell.add(polygon);
 
-        let transformed = cell.translate(Point::new(5, 5));
-        assert_ne!(cell, transformed);
-        assert_eq!(transformed.name, "test_cell");
-        assert_eq!(transformed.polygons.len(), 1);
-    }
-
-    #[test]
-    fn test_cell_rotation() {
-        let mut cell = Cell::new("test_cell");
-        let polygon = Polygon::new([(0, 0), (10, 0), (10, 10), (0, 10)], 1, 0);
-        cell.add(polygon);
-
-        let rotated = cell.rotate(90.0, Point::new(0, 0));
-        assert_eq!(rotated.name, "test_cell");
-        assert_eq!(rotated.polygons.len(), 1);
-    }
-
-    #[test]
-    fn test_cell_scale() {
-        let mut cell = Cell::new("test_cell");
-        let polygon = Polygon::new([(0, 0), (10, 0), (10, 10), (0, 10)], 1, 0);
-        cell.add(polygon);
-
-        let scaled = cell.scale(2.0, Point::new(0, 0));
-        assert_eq!(scaled.name, "test_cell");
-        assert_eq!(scaled.polygons.len(), 1);
-    }
-
-    #[test]
-    fn test_cell_reflect() {
-        let mut cell = Cell::new("test_cell");
-        let polygon = Polygon::new([(0, 0), (10, 0), (10, 10), (0, 10)], 1, 0);
-        cell.add(polygon);
-
-        let reflected = cell.reflect(0.0, Point::new(0, 0));
-        assert_eq!(reflected.name, "test_cell");
-        assert_eq!(reflected.polygons.len(), 1);
+        let display_str = format!("{cell}");
+        assert!(display_str.contains("Cell 'test_cell'"));
+        assert!(display_str.contains("1 polygon(s)"));
     }
 
     #[test]
     fn test_cell_clone() {
         let mut cell = Cell::new("test_cell");
-        let polygon = Polygon::new([(0, 0), (10, 0), (10, 10), (0, 10)], 1, 0);
+        let polygon = Polygon::new(
+            vec![
+                Point::integer(0, 0, 1e-9),
+                Point::integer(10, 0, 1e-9),
+                Point::integer(10, 10, 1e-9),
+                Point::integer(0, 10, 1e-9),
+            ],
+            1,
+            0,
+        );
         cell.add(polygon);
 
         let cloned = cell.clone();

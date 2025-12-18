@@ -1,4 +1,5 @@
 # GDSR
+
 GDSII manipulation, written in rust.
 
 > [!WARNING]
@@ -8,9 +9,12 @@ gdsr is currently being repurposed to being a rust crate at the core. Python bin
 
 ## Inspiration
 
-My main inspiration comes from [gdstk](https://github.com/heitzmann/gdstk). If you are looking for an extremely fast gds manipulation python package then i would strongly recommend heading over and having a look at his work.
+My main inspiration comes from [gdstk](https://github.com/heitzmann/gdstk).
+If you are looking for an extremely fast gds manipulation python package
+then i would strongly recommend heading over and having a look at his work.
 
 Other inspirations include:
+
 - [gdsfactory](https://github.com/gdsfactory/gdsfactory)
 - [klayout](https://www.klayout.org/klayout-pypi/)
 
@@ -19,28 +23,57 @@ Other inspirations include:
 A simple program below shows the easy to use interface.
 
 ```rust
-use gdsr_core::{Cell, Grid, Library, Polygon, Reference};
+
+use gdsr_core::{Cell, Grid, Library, Point, Polygon, Reference};
 
 fn main() {
+    let units = 1e-9;
+
     let mut library = Library::new("main");
 
     let mut cell = Cell::new("main_cell");
 
-    let polygon = Polygon::new([(0, 0), (1, 0), (1, 1), (0, 1)], 1, 0);
+    let polygon = Polygon::new(
+        [
+            Point::integer(0, 0, units),
+            Point::integer(1, 0, units),
+            Point::integer(1, 1, units),
+            Point::integer(0, 1, units),
+        ],
+        1,
+        0,
+    );
 
     let reference = Reference::new(
         polygon,
-        Grid::new((0, 0), 5, 5, (2, 0), (0, 2), 2.0, 0.0, false),
+        Grid::new(
+            Point::integer(0, 0, units),
+            5,
+            5,
+            Point::integer(2, 0, units),
+            Point::integer(0, 2, units),
+            2.0,
+            0.0,
+            false,
+        ),
     );
 
     cell.add(reference);
 
     library.add(cell);
 
-    let _res = library.to_gds("main.gds", 1e-9, 1e-9);
+    library.to_gds("main.gds", 1e-9, 1e-9).unwrap();
+
+    let library = Library::from_gds("main.gds", Some(1e-9));
 }
+
 ```
+
+This gives us the following GDS file:
+
+![5-5-grid.png](assets/5-5-grid.png)
 
 ## Need help?
 
-Head over to the [discussions page](https://github.com/MatthewMckee4/gdsr/discussions) and create a new discussion there or have a look at the [issues page](https://github.com/MatthewMckee4/gdsr/issues) to see if anyone has had the same issue as you.
+Head over to the [discussions page](https://github.com/MatthewMckee4/gdsr/discussions)
+and create a new discussion there or have a look at the [issues page](https://github.com/MatthewMckee4/gdsr/issues) to see if anyone has had the same issue as you.

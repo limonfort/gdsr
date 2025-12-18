@@ -1,7 +1,7 @@
 use std::{fs::File, io};
 
 use crate::{
-    CoordNum, DatabaseIntegerUnit, Point,
+    Point,
     transformation::{Reflection, Rotation, Scale, Transformation, Translation},
 };
 
@@ -19,26 +19,26 @@ pub trait Transformable: Sized {
     fn transform_impl(&self, transformation: &Transformation) -> Self;
 
     #[must_use]
-    fn rotate(&self, angle: f64, centre: Point<DatabaseIntegerUnit>) -> Self {
+    fn rotate(&self, angle: f64, centre: Point) -> Self {
         self.transform_impl(
             Transformation::default().with_rotation(Some(Rotation::new(angle, centre))),
         )
     }
 
     #[must_use]
-    fn scale(&self, factor: f64, centre: Point<DatabaseIntegerUnit>) -> Self {
+    fn scale(&self, factor: f64, centre: Point) -> Self {
         self.transform_impl(Transformation::default().with_scale(Some(Scale::new(factor, centre))))
     }
 
     #[must_use]
-    fn reflect(&self, angle: f64, centre: Point<DatabaseIntegerUnit>) -> Self {
+    fn reflect(&self, angle: f64, centre: Point) -> Self {
         self.transform_impl(
             Transformation::default().with_reflection(Some(Reflection::new(angle, centre))),
         )
     }
 
     #[must_use]
-    fn translate(&self, delta: Point<DatabaseIntegerUnit>) -> Self {
+    fn translate(&self, delta: Point) -> Self {
         self.transform_impl(
             Transformation::default().with_translation(Some(Translation::new(delta))),
         )
@@ -47,16 +47,16 @@ pub trait Transformable: Sized {
 
 pub trait Movable: Transformable {
     #[must_use]
-    fn move_by(&self, delta: Point<DatabaseIntegerUnit>) -> Self {
+    fn move_by(&self, delta: Point) -> Self {
         self.transform_impl(
             Transformation::default().with_translation(Some(Translation::new(delta))),
         )
     }
 
     #[must_use]
-    fn move_to(&self, target: Point<DatabaseIntegerUnit>) -> Self;
+    fn move_to(&self, target: Point) -> Self;
 }
 
-pub trait Dimensions<T: CoordNum> {
-    fn bounding_box(&self) -> (Point<T>, Point<T>);
+pub trait Dimensions {
+    fn bounding_box(&self) -> (Point, Point);
 }

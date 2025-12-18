@@ -12,12 +12,14 @@ authors = ["Matthew McKee <matthewmckee4@yahoo.co.uk>"]
 license = "MIT"
 
 [workspace.dependencies]
-
 approx = "0.5"
 bytemuck = "1.16.1"
 chrono = "0.4.38"
 gdsr_core = { path = "crates/gdsr_core" }
 geo = "0.28"
+insta = { version = "1.35.1" }
+quickcheck = "1.0.3"
+quickcheck_macros = "1"
 rstest = "0.23.0"
 tempfile = "3.8"
 
@@ -37,3 +39,6 @@ cast_sign_loss = "allow"
 missing_errors_doc = "allow"
 float_cmp = "allow"
 cast_possible_wrap = "allow"
+similar_names = "allow"
+missing_panics_doc = "allow"
+cognitive_complexity = "allow"
