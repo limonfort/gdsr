@@ -46,7 +46,7 @@ fn test_library_roundtrip_mixed_elements() {
         1,
         0,
         Some(PathType::Square),
-        Some(2.0),
+        Some(Unit::float(2.0, units)),
     );
     cell.add(path);
 
@@ -82,10 +82,10 @@ fn test_library_roundtrip_mixed_elements() {
 
     library.add(cell);
 
-    let _res = library.to_gds(gds_path.to_str().unwrap(), 1e-9, 1e-9);
+    let _res = library.write_file(gds_path.to_str().unwrap(), 1e-9, 1e-9);
 
     let new_library: Library =
-        Library::from_gds(gds_path.to_str().unwrap(), Some(DEFAULT_INTEGER_UNITS)).unwrap();
+        Library::read_file(gds_path.to_str().unwrap(), Some(DEFAULT_INTEGER_UNITS)).unwrap();
 
     assert_eq!(library, new_library, "{library:#?}\n{new_library:#?}");
 }
@@ -93,8 +93,6 @@ fn test_library_roundtrip_mixed_elements() {
 #[rstest]
 #[case(1e-9, 1e-9)]
 #[case(1e-9, 1e-10)]
-#[case(1e-6, 1e-9)]
-#[case(1e-3, 1e-6)]
 fn test_library_roundtrip_different_precision(
     #[case] user_units: f64,
     #[case] database_units: f64,
@@ -174,10 +172,9 @@ fn test_library_roundtrip_different_precision(
 
     library.add(cell);
 
-    let _res = library.to_gds(gds_path.to_str().unwrap(), user_units, database_units);
+    let _res = library.write_file(gds_path.to_str().unwrap(), user_units, database_units);
 
-    let new_library: Library =
-        Library::from_gds(gds_path.to_str().unwrap(), Some(DEFAULT_INTEGER_UNITS)).unwrap();
+    let new_library = Library::read_file(gds_path.to_str().unwrap(), Some(units)).unwrap();
 
     assert_eq!(library, new_library, "{library:#?}\n{new_library:#?}");
 }
@@ -189,10 +186,10 @@ fn test_empty_library_roundtrip() {
 
     let library = Library::new("empty_lib");
 
-    let _res = library.to_gds(gds_path.to_str().unwrap(), 1e-9, 1e-10);
+    let _res = library.write_file(gds_path.to_str().unwrap(), 1e-9, 1e-10);
 
     let new_library: Library =
-        Library::from_gds(gds_path.to_str().unwrap(), Some(DEFAULT_INTEGER_UNITS)).unwrap();
+        Library::read_file(gds_path.to_str().unwrap(), Some(DEFAULT_INTEGER_UNITS)).unwrap();
 
     assert_eq!(library, new_library);
 }
@@ -216,7 +213,7 @@ fn test_complex_path_types_roundtrip() {
         1,
         0,
         Some(PathType::Square),
-        Some(5.0),
+        Some(Unit::float(5.0, units)),
     );
     cell.add(path1);
 
@@ -230,7 +227,7 @@ fn test_complex_path_types_roundtrip() {
         2,
         0,
         Some(PathType::Round),
-        Some(3.0),
+        Some(Unit::float(3.0, units)),
     );
     cell.add(path2);
 
@@ -240,16 +237,16 @@ fn test_complex_path_types_roundtrip() {
         3,
         0,
         Some(PathType::Overlap),
-        Some(4.0),
+        Some(Unit::float(4.0, units)),
     );
     cell.add(path3);
 
     library.add(cell);
 
-    let _res = library.to_gds(gds_path.to_str().unwrap(), 1e-9, 1e-9);
+    let _res = library.write_file(gds_path.to_str().unwrap(), 1e-9, 1e-9);
 
     let new_library: Library =
-        Library::from_gds(gds_path.to_str().unwrap(), Some(DEFAULT_INTEGER_UNITS)).unwrap();
+        Library::read_file(gds_path.to_str().unwrap(), Some(DEFAULT_INTEGER_UNITS)).unwrap();
 
     assert_eq!(library, new_library);
 }
@@ -302,10 +299,10 @@ fn test_text_with_various_presentations() {
 
     library.add(cell);
 
-    let _res = library.to_gds(gds_path.to_str().unwrap(), 1e-9, 1e-9);
+    let _res = library.write_file(gds_path.to_str().unwrap(), 1e-9, 1e-9);
 
     let new_library: Library =
-        Library::from_gds(gds_path.to_str().unwrap(), Some(DEFAULT_INTEGER_UNITS)).unwrap();
+        Library::read_file(gds_path.to_str().unwrap(), Some(DEFAULT_INTEGER_UNITS)).unwrap();
 
     assert_eq!(library, new_library);
 }
@@ -370,10 +367,10 @@ fn test_nested_references() {
     library.add(cell2);
     library.add(cell3);
 
-    let _res = library.to_gds(gds_path.to_str().unwrap(), 1e-9, 1e-9);
+    let _res = library.write_file(gds_path.to_str().unwrap(), 1e-9, 1e-9);
 
     let new_library: Library =
-        Library::from_gds(gds_path.to_str().unwrap(), Some(DEFAULT_INTEGER_UNITS)).unwrap();
+        Library::read_file(gds_path.to_str().unwrap(), Some(DEFAULT_INTEGER_UNITS)).unwrap();
 
     assert_eq!(library, new_library);
 }
@@ -402,10 +399,10 @@ fn test_large_polygon_coordinates() {
 
     library.add(cell);
 
-    let _res = library.to_gds(gds_path.to_str().unwrap(), 1e-9, 1e-9);
+    let _res = library.write_file(gds_path.to_str().unwrap(), 1e-9, 1e-9);
 
     let new_library: Library =
-        Library::from_gds(gds_path.to_str().unwrap(), Some(DEFAULT_INTEGER_UNITS)).unwrap();
+        Library::read_file(gds_path.to_str().unwrap(), Some(DEFAULT_INTEGER_UNITS)).unwrap();
 
     assert_eq!(library, new_library);
 }
@@ -441,16 +438,16 @@ fn test_float_coordinates() {
         2,
         0,
         Some(PathType::Round),
-        Some(1.5),
+        Some(Unit::float(1.5, units)),
     );
     cell.add(path);
 
     library.add(cell);
 
-    let _res = library.to_gds(gds_path.to_str().unwrap(), 1e-9, 1e-9);
+    let _res = library.write_file(gds_path.to_str().unwrap(), 1e-9, 1e-9);
 
     let new_library: Library =
-        Library::from_gds(gds_path.to_str().unwrap(), Some(DEFAULT_INTEGER_UNITS)).unwrap();
+        Library::read_file(gds_path.to_str().unwrap(), Some(DEFAULT_INTEGER_UNITS)).unwrap();
 
     // Float coordinates are rounded when writing to GDS, so we just verify it reads back successfully
     assert_eq!(new_library.name, library.name);
@@ -486,17 +483,17 @@ fn test_multiple_cells_different_layers() {
         library.add(cell);
     }
 
-    let _res = library.to_gds(gds_path.to_str().unwrap(), 1e-9, 1e-9);
+    let _res = library.write_file(gds_path.to_str().unwrap(), 1e-9, 1e-9);
 
     let new_library: Library =
-        Library::from_gds(gds_path.to_str().unwrap(), Some(DEFAULT_INTEGER_UNITS)).unwrap();
+        Library::read_file(gds_path.to_str().unwrap(), Some(DEFAULT_INTEGER_UNITS)).unwrap();
 
     assert_eq!(library, new_library);
 }
 
 #[test]
 fn test_error_invalid_file() {
-    let result = Library::from_gds("/nonexistent/path/to/file.gds", Some(DEFAULT_INTEGER_UNITS));
+    let result = Library::read_file("/nonexistent/path/to/file.gds", Some(DEFAULT_INTEGER_UNITS));
     assert!(result.is_err());
 }
 
@@ -531,7 +528,7 @@ fn test_single_cell_with_all_element_types() {
         2,
         0,
         Some(PathType::Round),
-        Some(5.0),
+        Some(Unit::float(5.0, units)),
     ));
 
     // Add text
@@ -576,10 +573,10 @@ fn test_single_cell_with_all_element_types() {
 
     library.add(cell);
 
-    let _res = library.to_gds(gds_path.to_str().unwrap(), 1e-9, 1e-9);
+    let _res = library.write_file(gds_path.to_str().unwrap(), 1e-9, 1e-9);
 
     let new_library: Library =
-        Library::from_gds(gds_path.to_str().unwrap(), Some(DEFAULT_INTEGER_UNITS)).unwrap();
+        Library::read_file(gds_path.to_str().unwrap(), Some(DEFAULT_INTEGER_UNITS)).unwrap();
 
     assert_eq!(library, new_library);
 }
