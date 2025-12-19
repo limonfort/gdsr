@@ -14,7 +14,7 @@ use crate::elements::{Path, PathType, Polygon, Reference, Text};
 use crate::library::Library;
 use crate::utils::gds_format::{eight_byte_real, u16_array_to_big_endian};
 use crate::utils::geometry::round_to_decimals;
-use crate::{DataType, Instance, Layer, Point, ToGds, Unit};
+use crate::{DEFAULT_INTEGER_UNITS, DataType, Instance, Layer, Point, ToGds, Unit};
 
 pub fn write_gds_head_to_file(
     library_name: &str,
@@ -219,7 +219,7 @@ pub fn from_gds<P: AsRef<std::path::Path>>(
     let mut reference: Option<Reference> = None;
 
     let mut scale = 1.0;
-    let mut db_units = units.unwrap_or(1.0);
+    let mut db_units = units.unwrap_or(DEFAULT_INTEGER_UNITS);
 
     for record in reader {
         match record {
@@ -303,8 +303,8 @@ pub fn from_gds<P: AsRef<std::path::Path>>(
                             .iter()
                             .map(|p| {
                                 Point::integer(
-                                    (p.x().as_float() * scale).round() as i32,
-                                    (p.y().as_float() * scale).round() as i32,
+                                    (p.x().as_float_value() * scale).round() as i32,
+                                    (p.y().as_float_value() * scale).round() as i32,
                                     db_units,
                                 )
                             })
@@ -315,34 +315,37 @@ pub fn from_gds<P: AsRef<std::path::Path>>(
                         } else if let Some(path) = &mut path {
                             path.points = points;
                         } else if let Some(reference) = &mut reference {
-                            match points.len() {
-                                1 => {
-                                    reference.grid.set_origin(points[0]);
+                            match points.as_slice() {
+                                [point] => {
+                                    reference.grid.set_origin(*point);
                                 }
-                                3 => {
-                                    let origin = points[0];
-                                    let rotated_points = points
+                                [origin, _, _] => {
+                                    let unrotated_points = points
                                         .iter()
                                         .map(|&p| {
-                                            p.rotate_around_point(-reference.grid.angle(), &origin)
+                                            p.rotate_around_point(-reference.grid.angle(), origin)
                                         })
                                         .collect::<Vec<Point>>();
 
-                                    reference.grid.set_origin(rotated_points[0]);
+                                    reference.grid.set_origin(unrotated_points[0]);
 
                                     reference
                                         .grid
                                         .set_spacing_x(if reference.grid.columns() > 0 {
-                                            (rotated_points[1] - rotated_points[0])
-                                                / reference.grid.columns()
+                                            Some(
+                                                (unrotated_points[1] / reference.grid.columns())
+                                                    - unrotated_points[0],
+                                            )
                                         } else {
-                                            Point::default()
+                                            Some(Point::default())
                                         });
                                     reference.grid.set_spacing_y(if reference.grid.rows() > 0 {
-                                        (rotated_points[2] - rotated_points[0])
-                                            / reference.grid.rows()
+                                        Some(
+                                            (unrotated_points[2] / reference.grid.rows())
+                                                - unrotated_points[0],
+                                        )
                                     } else {
-                                        Point::integer(0, 0, db_units)
+                                        Some(Point::integer(0, 0, db_units))
                                     });
                                 }
                                 _ => {}

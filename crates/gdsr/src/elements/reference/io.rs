@@ -68,16 +68,39 @@ impl Reference {
 
         write_u16_array_to_file(file, &buffer_array)?;
 
-        let origin = self.grid().origin().to_integer_unit();
-        let point2 = (self.grid().origin() + self.grid().spacing_x()) * self.grid().columns();
-        let point3 = (self.grid().origin() + self.grid().spacing_y()) * self.grid().rows();
+        let origin = self
+            .grid()
+            .origin()
+            .rotate_around_point(self.grid().angle(), &self.grid().origin());
 
-        let reference_points: Vec<_> = [origin, point2, point3]
-            .iter()
-            .map(|&p| p.rotate_around_point(self.grid().angle(), &origin))
-            .collect();
+        match (self.grid.spacing_x(), self.grid.spacing_y()) {
+            (Some(spacing_x), Some(spacing_y)) => {
+                let point2 = ((origin + spacing_x) * self.grid().columns())
+                    .rotate_around_point(self.grid().angle(), &origin);
 
-        write_points_to_file(file, &reference_points, database_units)?;
+                let point3 = ((origin + spacing_y) * self.grid().rows())
+                    .rotate_around_point(self.grid().angle(), &origin);
+
+                let reference_points = [origin, point2, point3];
+                write_points_to_file(file, &reference_points, database_units)?;
+            }
+            (Some(spacing_x), None) => {
+                let point2 = ((origin + spacing_x) * self.grid().columns())
+                    .rotate_around_point(self.grid().angle(), &origin);
+                let reference_points = [origin, point2, origin];
+                write_points_to_file(file, &reference_points, database_units)?;
+            }
+            (None, Some(spacing_y)) => {
+                let point3 = ((origin + spacing_y) * self.grid().rows())
+                    .rotate_around_point(self.grid().angle(), &origin);
+                let reference_points = [origin, origin, point3];
+                write_points_to_file(file, &reference_points, database_units)?;
+            }
+            _ => {
+                let reference_points = [origin];
+                write_points_to_file(file, &reference_points, database_units)?;
+            }
+        }
 
         write_element_tail_to_file(file)
     }

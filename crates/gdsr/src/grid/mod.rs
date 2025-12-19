@@ -1,3 +1,5 @@
+use std::f64::consts::PI;
+
 use crate::{AngleInRadians, Movable, Point, Transformable, Transformation};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -5,8 +7,8 @@ pub struct Grid {
     origin: Point,
     columns: u32,
     rows: u32,
-    spacing_x: Point,
-    spacing_y: Point,
+    spacing_x: Option<Point>,
+    spacing_y: Option<Point>,
     magnification: f64,
     angle: AngleInRadians,
     x_reflection: bool,
@@ -18,8 +20,8 @@ impl Grid {
         origin: Point,
         columns: u32,
         rows: u32,
-        spacing_x: Point,
-        spacing_y: Point,
+        spacing_x: Option<Point>,
+        spacing_y: Option<Point>,
         magnification: f64,
         angle: AngleInRadians,
         x_reflection: bool,
@@ -48,11 +50,11 @@ impl Grid {
         self.rows
     }
 
-    pub const fn spacing_x(&self) -> Point {
+    pub const fn spacing_x(&self) -> Option<Point> {
         self.spacing_x
     }
 
-    pub const fn spacing_y(&self) -> Point {
+    pub const fn spacing_y(&self) -> Option<Point> {
         self.spacing_y
     }
 
@@ -80,11 +82,11 @@ impl Grid {
         self.rows = rows;
     }
 
-    pub const fn set_spacing_x(&mut self, spacing_x: Point) {
+    pub const fn set_spacing_x(&mut self, spacing_x: Option<Point>) {
         self.spacing_x = spacing_x;
     }
 
-    pub const fn set_spacing_y(&mut self, spacing_y: Point) {
+    pub const fn set_spacing_y(&mut self, spacing_y: Option<Point>) {
         self.spacing_y = spacing_y;
     }
 
@@ -107,8 +109,8 @@ impl Default for Grid {
             Point::integer(0, 0, 1e-9),
             1,
             1,
-            Point::integer(0, 0, 1e-9),
-            Point::integer(0, 0, 1e-9),
+            None,
+            None,
             1.0,
             0.0,
             false,
@@ -118,14 +120,20 @@ impl Default for Grid {
 
 impl std::fmt::Display for Grid {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let spacing_x_str = self
+            .spacing_x
+            .map_or_else(|| "None".to_string(), |p| p.to_string());
+        let spacing_y_str = self
+            .spacing_y
+            .map_or_else(|| "None".to_string(), |p| p.to_string());
         write!(
             f,
             "Grid at {} with {} columns and {} rows, spacing ({}, {}), magnification {:?}, angle {:?}, x_reflection {}",
             self.origin,
             self.columns,
             self.rows,
-            self.spacing_x,
-            self.spacing_y,
+            spacing_x_str,
+            spacing_y_str,
             self.magnification,
             self.angle,
             self.x_reflection,
@@ -136,8 +144,8 @@ impl std::fmt::Display for Grid {
 impl Transformable for Grid {
     fn transform_impl(mut self, transformation: &Transformation) -> Self {
         self.origin = transformation.apply_to_point(&self.origin);
-        self.spacing_x = transformation.apply_to_point(&self.spacing_x);
-        self.spacing_y = transformation.apply_to_point(&self.spacing_y);
+        self.spacing_x = self.spacing_x.map(|p| transformation.apply_to_point(&p));
+        self.spacing_y = self.spacing_y.map(|p| transformation.apply_to_point(&p));
 
         // Apply scale and rotation to grid properties
         if let Some(scale) = &transformation.scale {
@@ -146,8 +154,12 @@ impl Transformable for Grid {
 
         if let Some(rotation) = &transformation.rotation {
             self.angle += rotation.angle();
-            let result = self.angle % 360.0;
-            self.angle = if result < 0.0 { result + 360.0 } else { result };
+            let result = self.angle % (PI * 2.0);
+            self.angle = if result < 0.0 {
+                result + PI * 2.0
+            } else {
+                result
+            };
         }
 
         // Handle reflection
@@ -168,6 +180,8 @@ impl Movable for Grid {
 
 #[cfg(test)]
 mod tests {
+    use std::f64::consts::FRAC_PI_2;
+
     use insta::assert_snapshot;
 
     use super::*;
@@ -178,8 +192,8 @@ mod tests {
             Point::integer(10, 20, 1e-9),
             3,
             4,
-            Point::integer(5, 0, 1e-9),
-            Point::integer(0, 5, 1e-9),
+            Some(Point::integer(5, 0, 1e-9)),
+            Some(Point::integer(0, 5, 1e-9)),
             1.5,
             45.0,
             true,
@@ -188,8 +202,8 @@ mod tests {
         assert_eq!(grid.origin, Point::integer(10, 20, 1e-9));
         assert_eq!(grid.columns, 3);
         assert_eq!(grid.rows, 4);
-        assert_eq!(grid.spacing_x, Point::integer(5, 0, 1e-9));
-        assert_eq!(grid.spacing_y, Point::integer(0, 5, 1e-9));
+        assert_eq!(grid.spacing_x, Some(Point::integer(5, 0, 1e-9)));
+        assert_eq!(grid.spacing_y, Some(Point::integer(0, 5, 1e-9)));
         assert_eq!(grid.magnification, 1.5);
         assert_eq!(grid.angle, 45.0);
         assert!(grid.x_reflection);
@@ -201,8 +215,8 @@ mod tests {
         assert_eq!(grid.origin, Point::integer(0, 0, 1e-9));
         assert_eq!(grid.columns, 1);
         assert_eq!(grid.rows, 1);
-        assert_eq!(grid.spacing_x, Point::integer(0, 0, 1e-9));
-        assert_eq!(grid.spacing_y, Point::integer(0, 0, 1e-9));
+        assert_eq!(grid.spacing_x, None);
+        assert_eq!(grid.spacing_y, None);
         assert_eq!(grid.magnification, 1.0);
         assert_eq!(grid.angle, 0.0);
         assert!(!grid.x_reflection);
@@ -214,14 +228,40 @@ mod tests {
             Point::integer(10, 20, 1e-9),
             2,
             3,
-            Point::integer(5, 0, 1e-9),
-            Point::integer(0, 5, 1e-9),
+            Some(Point::integer(5, 0, 1e-9)),
+            Some(Point::integer(0, 5, 1e-9)),
             1.0,
             0.0,
             false,
         );
 
         assert_snapshot!(format!("{grid}"), @"Grid at Point(10 (1.000e-9), 20 (1.000e-9)) with 2 columns and 3 rows, spacing (Point(5 (1.000e-9), 0 (1.000e-9)), Point(0 (1.000e-9), 5 (1.000e-9))), magnification 1.0, angle 0.0, x_reflection false");
+
+        let grid = Grid::new(
+            Point::integer(10, 20, 1e-9),
+            2,
+            3,
+            Some(Point::integer(5, 0, 1e-9)),
+            None,
+            1.0,
+            0.0,
+            false,
+        );
+
+        assert_snapshot!(format!("{grid}"), @"Grid at Point(10 (1.000e-9), 20 (1.000e-9)) with 2 columns and 3 rows, spacing (Point(5 (1.000e-9), 0 (1.000e-9)), None), magnification 1.0, angle 0.0, x_reflection false");
+
+        let grid = Grid::new(
+            Point::integer(10, 20, 1e-9),
+            2,
+            3,
+            None,
+            Some(Point::integer(0, 5, 1e-9)),
+            1.0,
+            0.0,
+            false,
+        );
+
+        assert_snapshot!(format!("{grid}"), @"Grid at Point(10 (1.000e-9), 20 (1.000e-9)) with 2 columns and 3 rows, spacing (None, Point(0 (1.000e-9), 5 (1.000e-9))), magnification 1.0, angle 0.0, x_reflection false");
     }
 
     #[test]
@@ -230,8 +270,8 @@ mod tests {
             Point::integer(10, 20, 1e-9),
             3,
             4,
-            Point::integer(5, 0, 1e-9),
-            Point::integer(0, 5, 1e-9),
+            Some(Point::integer(5, 0, 1e-9)),
+            Some(Point::integer(0, 5, 1e-9)),
             1.5,
             45.0,
             true,
@@ -247,8 +287,8 @@ mod tests {
             Point::integer(10, 20, 1e-9),
             3,
             4,
-            Point::integer(5, 0, 1e-9),
-            Point::integer(0, 5, 1e-9),
+            Some(Point::integer(5, 0, 1e-9)),
+            Some(Point::integer(0, 5, 1e-9)),
             1.5,
             45.0,
             true,
@@ -257,8 +297,8 @@ mod tests {
             Point::integer(10, 20, 1e-9),
             3,
             4,
-            Point::integer(5, 0, 1e-9),
-            Point::integer(0, 5, 1e-9),
+            Some(Point::integer(5, 0, 1e-9)),
+            Some(Point::integer(0, 5, 1e-9)),
             1.5,
             45.0,
             true,
@@ -267,8 +307,8 @@ mod tests {
             Point::integer(10, 20, 1e-9),
             3,
             4,
-            Point::integer(5, 0, 1e-9),
-            Point::integer(0, 5, 1e-9),
+            Some(Point::integer(5, 0, 1e-9)),
+            Some(Point::integer(0, 5, 1e-9)),
             1.5,
             45.0,
             false,
@@ -284,8 +324,8 @@ mod tests {
             Point::integer(10, 20, 1e-9),
             2,
             2,
-            Point::integer(5, 0, 1e-9),
-            Point::integer(0, 5, 1e-9),
+            Some(Point::integer(5, 0, 1e-9)),
+            Some(Point::integer(0, 5, 1e-9)),
             1.0,
             0.0,
             false,
@@ -303,17 +343,17 @@ mod tests {
             Point::integer(10, 20, 1e-9),
             2,
             2,
-            Point::integer(5, 0, 1e-9),
-            Point::integer(0, 5, 1e-9),
+            Some(Point::integer(5, 0, 1e-9)),
+            Some(Point::integer(0, 5, 1e-9)),
             1.0,
             0.0,
             false,
         );
 
         let centre = Point::integer(0, 0, 1e-9);
-        let transformed = grid.rotate(90.0, centre);
+        let transformed = grid.rotate(FRAC_PI_2, centre);
 
-        assert_eq!(transformed.angle, 90.0);
+        assert_eq!(transformed.angle, FRAC_PI_2);
     }
 
     #[test]
@@ -322,8 +362,8 @@ mod tests {
             Point::integer(10, 20, 1e-9),
             2,
             2,
-            Point::integer(5, 0, 1e-9),
-            Point::integer(0, 5, 1e-9),
+            Some(Point::integer(5, 0, 1e-9)),
+            Some(Point::integer(0, 5, 1e-9)),
             1.0,
             0.0,
             false,
@@ -341,8 +381,8 @@ mod tests {
             Point::integer(10, 20, 1e-9),
             2,
             2,
-            Point::integer(5, 0, 1e-9),
-            Point::integer(0, 5, 1e-9),
+            Some(Point::integer(5, 0, 1e-9)),
+            Some(Point::integer(0, 5, 1e-9)),
             1.0,
             0.0,
             false,
@@ -360,8 +400,8 @@ mod tests {
             Point::integer(10, 20, 1e-9),
             2,
             2,
-            Point::integer(5, 0, 1e-9),
-            Point::integer(0, 5, 1e-9),
+            Some(Point::integer(5, 0, 1e-9)),
+            Some(Point::integer(0, 5, 1e-9)),
             1.0,
             0.0,
             false,
@@ -379,18 +419,18 @@ mod tests {
             Point::integer(10, 20, 1e-9),
             2,
             2,
-            Point::integer(5, 0, 1e-9),
-            Point::integer(0, 5, 1e-9),
+            Some(Point::integer(5, 0, 1e-9)),
+            Some(Point::integer(0, 5, 1e-9)),
             1.0,
-            350.0,
+            FRAC_PI_2,
             false,
         );
 
         let centre = Point::integer(0, 0, 1e-9);
-        let transformed = grid.rotate(20.0, centre);
+        let transformed = grid.rotate(PI * 2.0, centre);
 
-        // 350 + 20 = 370, which should normalize to 10
-        assert!((transformed.angle - 10.0).abs() < 0.001);
+        // 3/2 * PI + PI = 5/2 * PI, which should normalize to PI
+        assert!((transformed.angle - FRAC_PI_2).abs() < 0.001);
     }
 
     #[test]
@@ -399,8 +439,8 @@ mod tests {
             Point::integer(10, 20, 1e-9),
             3,
             4,
-            Point::integer(5, 0, 1e-9),
-            Point::integer(0, 5, 1e-9),
+            Some(Point::integer(5, 0, 1e-9)),
+            Some(Point::integer(0, 5, 1e-9)),
             1.5,
             45.0,
             true,
@@ -409,8 +449,8 @@ mod tests {
         assert_eq!(grid.origin(), Point::integer(10, 20, 1e-9));
         assert_eq!(grid.columns(), 3);
         assert_eq!(grid.rows(), 4);
-        assert_eq!(grid.spacing_x(), Point::integer(5, 0, 1e-9));
-        assert_eq!(grid.spacing_y(), Point::integer(0, 5, 1e-9));
+        assert_eq!(grid.spacing_x(), Some(Point::integer(5, 0, 1e-9)));
+        assert_eq!(grid.spacing_y(), Some(Point::integer(0, 5, 1e-9)));
         assert_eq!(grid.magnification(), 1.5);
         assert_eq!(grid.angle(), 45.0);
         assert!(grid.x_reflection());
@@ -422,8 +462,8 @@ mod tests {
             Point::integer(10, 20, 1e-9),
             2,
             2,
-            Point::integer(5, 0, 1e-9),
-            Point::integer(0, 5, 1e-9),
+            Some(Point::integer(5, 0, 1e-9)),
+            Some(Point::integer(0, 5, 1e-9)),
             1.0,
             0.0,
             false,
@@ -432,8 +472,8 @@ mod tests {
         grid.set_origin(Point::integer(100, 200, 1e-9));
         grid.set_columns(5);
         grid.set_rows(6);
-        grid.set_spacing_x(Point::integer(10, 0, 1e-9));
-        grid.set_spacing_y(Point::integer(0, 10, 1e-9));
+        grid.set_spacing_x(Some(Point::integer(10, 0, 1e-9)));
+        grid.set_spacing_y(Some(Point::integer(0, 10, 1e-9)));
         grid.set_magnification(2.0);
         grid.set_angle(90.0);
         grid.set_x_reflection(true);
@@ -441,8 +481,8 @@ mod tests {
         assert_eq!(grid.origin, Point::integer(100, 200, 1e-9));
         assert_eq!(grid.columns, 5);
         assert_eq!(grid.rows, 6);
-        assert_eq!(grid.spacing_x, Point::integer(10, 0, 1e-9));
-        assert_eq!(grid.spacing_y, Point::integer(0, 10, 1e-9));
+        assert_eq!(grid.spacing_x, Some(Point::integer(10, 0, 1e-9)));
+        assert_eq!(grid.spacing_y, Some(Point::integer(0, 10, 1e-9)));
         assert_eq!(grid.magnification, 2.0);
         assert_eq!(grid.angle, 90.0);
         assert!(grid.x_reflection);

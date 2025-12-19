@@ -51,10 +51,10 @@ impl Point {
     }
 
     #[must_use]
-    pub const fn with_units(&self, units: f64) -> Self {
+    pub const fn set_units(&self, units: f64) -> Self {
         Self {
-            x: self.x.with_units(units),
-            y: self.y.with_units(units),
+            x: self.x.set_units(units),
+            y: self.y.set_units(units),
         }
     }
 
@@ -124,52 +124,15 @@ impl Point {
             return *self;
         }
 
+        let (u1, u2) = self.units();
+
         let cos_a = angle.cos();
         let sin_a = angle.sin();
 
-        // Convert to float units and extract values
-        let x_float = self.x.to_float_unit();
-        let y_float = self.y.to_float_unit();
-        let cx_float = center.x.to_float_unit();
-        let cy_float = center.y.to_float_unit();
-
-        let Unit::Float {
-            value: x_val,
-            units: x_units,
-        } = x_float
-        else {
-            unreachable!("to_float_unit should always return Float variant");
-        };
-
-        let Unit::Float {
-            value: y_val,
-            units: y_units,
-        } = y_float
-        else {
-            unreachable!("to_float_unit should always return Float variant");
-        };
-
-        let Unit::Float {
-            value: cx_val,
-            units: cx_units,
-        } = cx_float
-        else {
-            unreachable!("to_float_unit should always return Float variant");
-        };
-
-        let Unit::Float {
-            value: cy_val,
-            units: cy_units,
-        } = cy_float
-        else {
-            unreachable!("to_float_unit should always return Float variant");
-        };
-
-        // Calculate real world values
-        let x_real = x_val * x_units;
-        let y_real = y_val * y_units;
-        let cx_real = cx_val * cx_units;
-        let cy_real = cy_val * cy_units;
+        let x_real = self.x.scale_units(u1).as_float_value();
+        let y_real = self.y.scale_units(u2).as_float_value();
+        let cx_real = center.x.scale_units(u1).as_float_value();
+        let cy_real = center.y.scale_units(u2).as_float_value();
 
         // Translate to origin relative to center
         let dx = x_real - cx_real;
@@ -182,8 +145,6 @@ impl Point {
         // Translate back
         let new_x_real = rotated_dx + cx_real;
         let new_y_real = rotated_dy + cy_real;
-
-        let (u1, u2) = self.units();
 
         Self {
             x: Unit::float(new_x_real, u1),
@@ -219,12 +180,6 @@ impl Movable for Point {
     }
 }
 
-impl From<&Self> for Point {
-    fn from(point: &Self) -> Self {
-        *point
-    }
-}
-
 impl Add for Point {
     type Output = Self;
 
@@ -236,32 +191,10 @@ impl Add for Point {
     }
 }
 
-impl Add<&Self> for Point {
-    type Output = Self;
-
-    fn add(self, rhs: &Self) -> Self::Output {
-        Self {
-            x: self.x + rhs.x,
-            y: self.y + rhs.y,
-        }
-    }
-}
-
 impl Add<Point> for &Point {
     type Output = Point;
 
     fn add(self, rhs: Point) -> Self::Output {
-        Point {
-            x: self.x + rhs.x,
-            y: self.y + rhs.y,
-        }
-    }
-}
-
-impl Add<&Point> for &Point {
-    type Output = Point;
-
-    fn add(self, rhs: &Point) -> Self::Output {
         Point {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
@@ -348,9 +281,14 @@ impl Div<f64> for Point {
 
 #[cfg(test)]
 mod tests {
+    use crate::Integer;
+
     use super::*;
 
     mod creation {
+
+        use crate::Float;
+
         use super::*;
 
         #[test]
@@ -365,6 +303,14 @@ mod tests {
             let point = Point::default_integer(100, 200);
             assert_eq!(point.x(), Unit::integer(100, 1e-9));
             assert_eq!(point.y(), Unit::integer(200, 1e-9));
+        }
+
+        #[test]
+        fn with_units() {
+            let point =
+                Point::new(Unit::integer(100, 1e-6), Unit::float(2.5, 1e-6)).set_units(1e-9);
+            assert_eq!(point.x(), Unit::integer(100, 1e-9));
+            assert_eq!(point.y(), Unit::float(2.5, 1e-9));
         }
 
         #[test]
@@ -445,12 +391,12 @@ mod tests {
 
             // Rotated point should be approximately (-100, -200) in real units
             let x_real = match rotated.x().to_float_unit() {
-                Unit::Float { value, units } => value * units,
-                Unit::Integer { .. } => unreachable!(),
+                Unit::Float(Float { value, units }) => value * units,
+                Unit::Integer(Integer { .. }) => unreachable!(),
             };
             let y_real = match rotated.y().to_float_unit() {
-                Unit::Float { value, units } => value * units,
-                Unit::Integer { .. } => unreachable!(),
+                Unit::Float(Float { value, units }) => value * units,
+                Unit::Integer(Integer { .. }) => unreachable!(),
             };
 
             assert!((x_real - (-100e-9)).abs() < 1e-15);
@@ -477,6 +423,8 @@ mod tests {
     mod conversion {
         use approx::assert_relative_eq;
 
+        use crate::Float;
+
         use super::*;
 
         #[test]
@@ -494,19 +442,19 @@ mod tests {
             let converted = point.to_integer_unit();
 
             match converted.x() {
-                Unit::Integer { value, units } => {
+                Unit::Integer(Integer { value, units }) => {
                     assert_eq!(value, 1);
                     assert_eq!(units, 1e-3);
                 }
-                Unit::Float { .. } => panic!("Expected Integer variant"),
+                Unit::Float(Float { .. }) => panic!("Expected Integer variant"),
             }
 
             match converted.y() {
-                Unit::Integer { value, units } => {
+                Unit::Integer(Integer { value, units }) => {
                     assert_eq!(value, 2);
                     assert_eq!(units, 1e-3);
                 }
-                Unit::Float { .. } => panic!("Expected Integer variant"),
+                Unit::Float(Float { .. }) => panic!("Expected Integer variant"),
             }
         }
 
@@ -525,19 +473,19 @@ mod tests {
             let converted = point.to_float_unit().scale_units(1e-6);
 
             match converted.x() {
-                Unit::Float { value, units } => {
+                Unit::Float(Float { value, units }) => {
                     assert_relative_eq!(value, 0.1);
                     assert_eq!(units, 1e-6);
                 }
-                Unit::Integer { .. } => panic!("Expected Float variant"),
+                Unit::Integer(Integer { .. }) => panic!("Expected Float variant"),
             }
 
             match converted.y() {
-                Unit::Float { value, units } => {
+                Unit::Float(Float { value, units }) => {
                     assert_relative_eq!(value, 0.2);
                     assert_eq!(units, 1e-6);
                 }
-                Unit::Integer { .. } => panic!("Expected Float variant"),
+                Unit::Integer(Integer { .. }) => panic!("Expected Float variant"),
             }
         }
 
@@ -564,12 +512,14 @@ mod tests {
     mod rotation {
         use std::f64::consts::PI;
 
+        use crate::Float;
+
         use super::*;
 
         fn extract_real_value(unit: Unit) -> f64 {
             match unit.to_float_unit().scale_units(1e-6) {
-                Unit::Float { value, units } => value * units,
-                Unit::Integer { .. } => unreachable!(),
+                Unit::Float(Float { value, units }) => value * units,
+                Unit::Integer(Integer { .. }) => unreachable!(),
             }
         }
 
