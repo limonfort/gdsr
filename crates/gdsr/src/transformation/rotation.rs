@@ -83,9 +83,7 @@ mod tests {
     #[test]
     fn test_rotation_display() {
         let rotation = Rotation::new(FRAC_PI_2, Point::integer(10, 20, 1e-9));
-        let display_str = format!("{rotation}");
-        assert!(display_str.contains(&format!("Rotation of {FRAC_PI_2} rad about")));
-        assert!(display_str.contains("Point("));
+        insta::assert_snapshot!(rotation.to_string(), @"Rotation of 1.5707963267948966 rad about Point(10 (1.000e-9), 20 (1.000e-9))");
     }
 
     #[test]

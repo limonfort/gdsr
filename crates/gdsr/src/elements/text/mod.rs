@@ -241,10 +241,7 @@ mod tests {
             presentation::HorizontalPresentation::Left,
         );
 
-        let display_str = format!("{text}");
-        assert!(display_str.contains("Text 'Test Text'"));
-        assert!(display_str.contains("vertical: Bottom"));
-        assert!(display_str.contains("horizontal: Left"));
+        insta::assert_snapshot!(text.to_string(), @"Text 'Test Text' vertical: Bottom, horizontal: Left at Point(10 (1.000e-9), 20 (1.000e-9))");
     }
 
     #[test]

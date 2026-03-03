@@ -208,9 +208,7 @@ mod tests {
 
         let reference = Reference::new("test_cell").with_grid(grid);
 
-        let display_str = format!("{reference}");
-        assert!(display_str.contains("Reference to"));
-        assert!(display_str.contains("test_cell"));
+        insta::assert_snapshot!(reference.to_string(), @"Reference to Cell instance: test_cell with grid Grid at Point(0 (1.000e-9), 0 (1.000e-9)) with 1 columns and 1 rows, spacing (None, None), magnification 1.0, angle 0.0, x_reflection false");
     }
 
     #[test]

@@ -218,9 +218,7 @@ mod tests {
         let polygon = Polygon::default();
         cell.add(polygon);
 
-        let display_str = format!("{cell}");
-        assert!(display_str.contains("Cell 'test_cell'"));
-        assert!(display_str.contains("1 polygon(s)"));
+        insta::assert_snapshot!(cell.to_string(), @"Cell 'test_cell' with 1 polygon(s), 0 path(s), 0 text(s)");
     }
 
     #[test]
