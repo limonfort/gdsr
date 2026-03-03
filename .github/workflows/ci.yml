@@ -11,8 +11,7 @@ on:
 
 permissions: {}
 
-env:
-  PYTHON_VERSION: "3.10"
+env: {}
 
 jobs:
   determine_changes:
@@ -46,11 +45,14 @@ jobs:
           if git diff --quiet "${MERGE_BASE}...HEAD" -- \
             . \
             ':!docs/' \
+            ':!.markdownlint.yaml' \
+            ':!.pre-commit-config.yaml' \
+            ':!CHANGELOG.md' \
             ':!CODE_OF_CONDUCT.md' \
             ':!CONTRIBUTING.md' \
             ':!LICENSE' \
-            ':!pyproject.toml' \
             ':!README.md' \
+            ':!seal.toml' \
             ':!zensical.toml' \
           ; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -68,9 +70,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@3542bca2639a428e1796aaa6a2ffef0c0f575566 # v3.1.4
-
-      - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
+      - uses: j178/prek-action@91fd7d7cf70ae1dee9f4f44e7dfa5d1073fe6623 # v1.0.11
 
   build-docs:
     name: "Build docs"
@@ -98,11 +98,9 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     needs: determine_changes
-
     if: ${{ (needs.determine_changes.outputs.code == 'true' || github.ref == 'refs/heads/main') }}
 
     strategy:
-      max-parallel: 18
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
@@ -122,9 +120,8 @@ jobs:
         with:
           tool: cargo-nextest
 
-      - name: "Cargo test"
-        run: |
-          cargo nextest run --no-fail-fast
+      - name: Run tests
+        run: cargo nextest run
 
   coverage:
     name: "coverage"
