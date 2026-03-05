@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::cell::Cell;
 use crate::error::GdsError;
+use crate::types::LayerMapping;
 use crate::utils::io::{from_gds, write_gds};
 
 /// A dangling reference: a cell contains a reference to a target that doesn't exist.
@@ -83,6 +84,13 @@ impl Library {
     ) -> Result<(), GdsError> {
         let cells: Vec<&Cell> = self.cells.values().collect();
         write_gds(file_name, &self.name, user_units, database_units, &cells)
+    }
+
+    /// Remaps layer/data type pairs on all elements in all cells using the given mapping.
+    pub fn remap_layers(&mut self, mapping: &LayerMapping) {
+        for cell in self.cells.values_mut() {
+            cell.remap_layers(mapping);
+        }
     }
 
     /// Returns all dangling cell references in the library.
@@ -255,6 +263,164 @@ mod tests {
     fn test_library_debug() {
         let library: Library = Library::new("debug_lib");
         insta::assert_snapshot!(format!("{library:?}"), @r#"Library { name: "debug_lib", cells: {} }"#);
+    }
+
+    #[test]
+    fn test_remap_layers_across_library() {
+        let units = 1e-9;
+        let mut library = Library::new("lib");
+
+        let mut cell = Cell::new("cell");
+        cell.add(Polygon::new(
+            [
+                Point::integer(0, 0, units),
+                Point::integer(10, 0, units),
+                Point::integer(10, 10, units),
+            ],
+            Layer::new(1),
+            DataType::new(0),
+        ));
+        cell.add(crate::Path::new(
+            vec![Point::integer(0, 0, units), Point::integer(5, 5, units)],
+            Layer::new(2),
+            DataType::new(3),
+            None,
+            None,
+            None,
+            None,
+        ));
+        library.add_cell(cell);
+
+        let mapping: crate::LayerMapping = [
+            (
+                (Layer::new(1), DataType::new(0)),
+                (Layer::new(10), DataType::new(20)),
+            ),
+            (
+                (Layer::new(2), DataType::new(3)),
+                (Layer::new(22), DataType::new(33)),
+            ),
+        ]
+        .into_iter()
+        .collect();
+
+        library.remap_layers(&mapping);
+
+        let cell = library.get_cell("cell").unwrap();
+        insta::assert_debug_snapshot!(
+            (cell.polygons()[0].layer(), cell.polygons()[0].data_type()),
+            @r#"
+        (
+            Layer(
+                10,
+            ),
+            DataType(
+                20,
+            ),
+        )
+        "#
+        );
+        insta::assert_debug_snapshot!(
+            (cell.paths()[0].layer(), cell.paths()[0].data_type()),
+            @r#"
+        (
+            Layer(
+                22,
+            ),
+            DataType(
+                33,
+            ),
+        )
+        "#
+        );
+    }
+
+    #[test]
+    fn test_remap_layers_inline_element() {
+        let units = 1e-9;
+        let mut library = Library::new("lib");
+
+        let polygon = Polygon::new(
+            [
+                Point::integer(0, 0, units),
+                Point::integer(10, 0, units),
+                Point::integer(10, 10, units),
+            ],
+            Layer::new(1),
+            DataType::new(0),
+        );
+        let mut cell = Cell::new("cell");
+        cell.add(Reference::new(polygon));
+        library.add_cell(cell);
+
+        let mapping: crate::LayerMapping = [(
+            (Layer::new(1), DataType::new(0)),
+            (Layer::new(50), DataType::new(60)),
+        )]
+        .into_iter()
+        .collect();
+
+        library.remap_layers(&mapping);
+
+        let cell = library.get_cell("cell").unwrap();
+        let reference = &cell.references()[0];
+        let inner = reference.instance().as_element().unwrap();
+        let polygon = inner.as_polygon().unwrap();
+        insta::assert_debug_snapshot!(
+            (polygon.layer(), polygon.data_type()),
+            @r#"
+        (
+            Layer(
+                50,
+            ),
+            DataType(
+                60,
+            ),
+        )
+        "#
+        );
+    }
+
+    #[test]
+    fn test_remap_layers_unmatched_unchanged() {
+        let units = 1e-9;
+        let mut library = Library::new("lib");
+
+        let mut cell = Cell::new("cell");
+        cell.add(Polygon::new(
+            [
+                Point::integer(0, 0, units),
+                Point::integer(10, 0, units),
+                Point::integer(10, 10, units),
+            ],
+            Layer::new(5),
+            DataType::new(6),
+        ));
+        library.add_cell(cell);
+
+        let mapping: crate::LayerMapping = [(
+            (Layer::new(99), DataType::new(99)),
+            (Layer::new(1), DataType::new(1)),
+        )]
+        .into_iter()
+        .collect();
+
+        library.remap_layers(&mapping);
+
+        let cell = library.get_cell("cell").unwrap();
+        insta::assert_debug_snapshot!(
+            (cell.polygons()[0].layer(), cell.polygons()[0].data_type()),
+            @r#"
+        (
+            Layer(
+                5,
+            ),
+            DataType(
+                6,
+            ),
+        )
+        "#
+        );
     }
 
     #[test]

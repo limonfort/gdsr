@@ -76,6 +76,19 @@ impl Element {
         }
     }
 
+    /// Remaps the layer and data type using the given mapping.
+    /// For references, remaps the inline element if present.
+    pub fn remap_layers(&mut self, mapping: &crate::LayerMapping) {
+        match self {
+            Self::Path(path) => path.remap_layers(mapping),
+            Self::Polygon(polygon) => polygon.remap_layers(mapping),
+            Self::Box(gds_box) => gds_box.remap_layers(mapping),
+            Self::Node(node) => node.remap_layers(mapping),
+            Self::Text(text) => text.remap_layers(mapping),
+            Self::Reference(reference) => reference.remap_layers(mapping),
+        }
+    }
+
     /// Converts the inner element to integer units.
     #[must_use]
     pub fn to_integer_unit(self) -> Self {
