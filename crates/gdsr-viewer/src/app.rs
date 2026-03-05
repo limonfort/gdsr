@@ -8,6 +8,16 @@ use crate::spatial::SpatialGrid;
 use crate::state::{CellState, FileLoadState, LayerState, RenderCache};
 use crate::viewport::{self, Viewport};
 
+/// Returns shortcut text with the platform-appropriate modifier (⌘ on macOS, Ctrl on others).
+fn shortcut_text(key: &str) -> String {
+    let modifier = if cfg!(target_os = "macos") {
+        "⌘"
+    } else {
+        "Ctrl+"
+    };
+    format!("{modifier}{key}")
+}
+
 #[derive(Default)]
 pub struct ViewerApp {
     file_load: FileLoadState,
@@ -156,13 +166,49 @@ impl eframe::App for ViewerApp {
             self.zoom_to_fit();
         }
 
+        // Global keyboard shortcuts
+        if ctx.input(|i| i.key_pressed(egui::Key::F)) {
+            self.zoom_to_fit();
+        }
+        if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::O)) {
+            self.open_file_dialog();
+        }
+
         egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.menu_button("File", |ui| {
-                    if ui.button("Open...").clicked() {
+                    if ui
+                        .add(egui::Button::new("Open...").shortcut_text(shortcut_text("O")))
+                        .clicked()
+                    {
                         ui.close_kind(egui::UiKind::Menu);
                         self.open_file_dialog();
                     }
+                });
+                ui.menu_button("View", |ui| {
+                    if ui
+                        .add(egui::Button::new("Zoom to Fit").shortcut_text("F"))
+                        .clicked()
+                    {
+                        ui.close_kind(egui::UiKind::Menu);
+                        self.zoom_to_fit();
+                    }
+                    if ui
+                        .add(egui::Button::new("Zoom In").shortcut_text("+"))
+                        .clicked()
+                    {
+                        ui.close_kind(egui::UiKind::Menu);
+                        self.viewport.zoom_at_center(1.2);
+                    }
+                    if ui
+                        .add(egui::Button::new("Zoom Out").shortcut_text("-"))
+                        .clicked()
+                    {
+                        ui.close_kind(egui::UiKind::Menu);
+                        self.viewport.zoom_at_center(1.0 / 1.2);
+                    }
+                    ui.separator();
+                    ui.label("Pan: Arrow Keys");
                 });
             });
         });
@@ -195,14 +241,13 @@ impl eframe::App for ViewerApp {
         });
 
         let mut cell_changed = false;
-        let mut zoom_to_fit = false;
         let cell = &mut self.cell;
         let layer_state = &mut self.layer_state;
         egui::SidePanel::left("side_panel")
             .default_width(200.0)
             .show(ctx, |ui| {
                 if let Some(cell) = cell.as_mut() {
-                    zoom_to_fit = panels::draw_side_panel(
+                    panels::draw_side_panel(
                         ui,
                         &cell.cell_names,
                         &mut cell.selected_cell,
@@ -217,10 +262,6 @@ impl eframe::App for ViewerApp {
             if let Some(name) = self.cell.as_ref().and_then(|c| c.selected_cell.clone()) {
                 self.select_cell(&name);
             }
-        }
-
-        if zoom_to_fit {
-            self.zoom_to_fit();
         }
 
         let cell = &mut self.cell;
