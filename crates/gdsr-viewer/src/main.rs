@@ -1,8 +1,14 @@
 mod app;
 mod colors;
+mod drawable;
 mod loader;
 mod panels;
+#[cfg(test)]
+mod property_tests;
 mod spatial;
+mod state;
+#[cfg(test)]
+mod testutil;
 mod viewport;
 
 fn main() -> eframe::Result<()> {
