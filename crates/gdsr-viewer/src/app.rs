@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::thread;
 
@@ -19,6 +19,21 @@ pub struct ViewerApp {
 }
 
 impl ViewerApp {
+    pub fn with_path(path: &Path) -> Self {
+        let (path, rx) = crate::loader::load_request(path);
+        let file_load = FileLoadState {
+            file_path: Some(path.clone()),
+            load_receiver: Some((path, rx)),
+            loading: true,
+            error_message: None,
+        };
+
+        Self {
+            file_load,
+            ..Default::default()
+        }
+    }
+
     /// Opens a native file dialog and starts loading the selected GDS file on a background thread.
     fn open_file_dialog(&mut self) {
         if let Some((path, rx)) = crate::loader::load_file_dialog() {
