@@ -4,6 +4,7 @@ use std::thread;
 
 use crate::drawable::Drawable;
 use crate::panels;
+use crate::ruler::RulerState;
 use crate::spatial::SpatialGrid;
 use crate::state::{CellState, FileLoadState, LayerState, RenderCache};
 use crate::viewport::{self, Viewport};
@@ -25,6 +26,7 @@ pub struct ViewerApp {
     viewport: Viewport,
     mouse_world_pos: Option<(f64, f64)>,
     render_cache: RenderCache,
+    ruler: RulerState,
     show_grid: bool,
     hovered_element: Option<usize>,
 }
@@ -38,6 +40,7 @@ impl Default for ViewerApp {
             viewport: Viewport::default(),
             mouse_world_pos: None,
             render_cache: RenderCache::default(),
+            ruler: RulerState::default(),
             show_grid: true,
             hovered_element: None,
         }
@@ -193,6 +196,17 @@ impl eframe::App for ViewerApp {
         if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::O)) {
             self.open_file_dialog();
         }
+        if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::R)) {
+            self.ruler.clear_all();
+        } else if ctx.input(|i| i.key_pressed(egui::Key::R)) {
+            self.ruler.toggle();
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.ruler.cancel();
+        }
+        if self.ruler.start.is_some() {
+            ctx.request_repaint();
+        }
 
         egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
@@ -228,6 +242,20 @@ impl eframe::App for ViewerApp {
                         self.viewport.zoom_at_center(1.0 / 1.2);
                     }
                     ui.separator();
+                    if ui
+                        .add(egui::Button::new("Ruler").shortcut_text("R"))
+                        .clicked()
+                    {
+                        ui.close_kind(egui::UiKind::Menu);
+                        self.ruler.toggle();
+                    }
+                    if ui
+                        .add(egui::Button::new("Clear Rulers").shortcut_text(shortcut_text("R")))
+                        .clicked()
+                    {
+                        ui.close_kind(egui::UiKind::Menu);
+                        self.ruler.clear_all();
+                    }
                     if ui
                         .add(
                             egui::Button::new(if self.show_grid {
@@ -271,6 +299,9 @@ impl eframe::App for ViewerApp {
                     if let Some((wx, wy)) = self.mouse_world_pos {
                         ui.label(format!("({wx:.6}, {wy:.6})"));
                     }
+                    if self.ruler.active {
+                        ui.label("Ruler: click to place point (Esc to cancel)");
+                    }
                 });
             });
         });
@@ -307,6 +338,7 @@ impl eframe::App for ViewerApp {
         let layer_state = &mut self.layer_state;
         let mouse_world_pos = &mut self.mouse_world_pos;
         let render_cache = &mut self.render_cache;
+        let ruler = &mut self.ruler;
         let show_grid = self.show_grid;
         let hovered_element = &mut self.hovered_element;
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -331,6 +363,7 @@ impl eframe::App for ViewerApp {
                 library,
                 render_cache,
                 tessellation_cache,
+                ruler,
                 show_grid,
                 *hovered_element,
             );
