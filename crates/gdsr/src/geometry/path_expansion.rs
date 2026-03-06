@@ -158,6 +158,12 @@ fn miter_or_bevel(
     right.push((p.0 - miter.0 / 2.0 * s, p.1 - miter.1 / 2.0 * s));
 }
 
+/// Generates a semicircular end cap.
+///
+/// The polygon is built as: left, end cap, right reversed, begin cap.
+/// The end cap must start at the left offset and sweep clockwise to the right offset.
+/// The begin cap must start at the right offset (where the reversed right side ends)
+/// and sweep clockwise to the left offset (where the polygon closes).
 fn semicircle_cap(
     center: (f64, f64),
     normal: (f64, f64),
@@ -168,17 +174,17 @@ fn semicircle_cap(
     let segments = segments.max(4);
     let mut pts = Vec::with_capacity(segments + 1);
 
-    // The cap goes from one side of the normal to the other, sweeping π radians
-    let start_angle = normal.1.atan2(normal.0);
-    let sweep = if is_begin {
-        std::f64::consts::PI
+    // End cap starts from +normal (left offset), begin cap from −normal (right offset).
+    // Both sweep −π (clockwise) to reach the opposite side.
+    let start_angle = if is_begin {
+        (-normal.1).atan2(-normal.0)
     } else {
-        -std::f64::consts::PI
+        normal.1.atan2(normal.0)
     };
 
     for i in 0..=segments {
         let t = i as f64 / segments as f64;
-        let angle = start_angle + sweep * t;
+        let angle = start_angle - std::f64::consts::PI * t;
         pts.push((
             center.0 + half_width * angle.cos(),
             center.1 + half_width * angle.sin(),
@@ -266,13 +272,56 @@ mod tests {
             0.0,
             4,
         );
-        // Left side + end semicircle + right side reversed + begin semicircle
-        assert!(pts.len() > 4, "Round cap should produce more points");
-        // First and last left-side points
+        // left(2) + end_cap(5) + right_rev(2) + begin_cap(5) = 14
+        assert_eq!(pts.len(), 14);
+        // First point: left[0] = (0, 1)
         assert!((pts[0].0 - 0.0).abs() < 1e-10);
         assert!((pts[0].1 - 1.0).abs() < 1e-10);
+        // Second: left[1] = (10, 1)
         assert!((pts[1].0 - 10.0).abs() < 1e-10);
         assert!((pts[1].1 - 1.0).abs() < 1e-10);
+        // Last point of polygon should equal first (closed, contiguous)
+        let last = pts.last().unwrap();
+        assert!((last.0 - pts[0].0).abs() < 1e-10);
+        assert!((last.1 - pts[0].1).abs() < 1e-10);
+    }
+
+    #[test]
+    fn round_cap_polygon_is_contiguous() {
+        // Use a short path (length 1) so the straight edges are shorter
+        // than the diameter (2 * half_width = 2). A broken cap that jumps
+        // across the diameter would produce a gap > 1.5, which exceeds
+        // the path length and is clearly wrong.
+        let pts = expand_path_to_polygon(
+            &[(0.0, 0.0), (1.0, 0.0)],
+            1.0,
+            PathType::Round,
+            0.0,
+            0.0,
+            16,
+        );
+        let max_gap_sq = pts
+            .windows(2)
+            .map(|w| {
+                let dx = w[1].0 - w[0].0;
+                let dy = w[1].1 - w[0].1;
+                dx * dx + dy * dy
+            })
+            .fold(0.0_f64, f64::max);
+        // The longest straight edge is 1.0 (gap² = 1.0). Arc steps with
+        // 16 segments are much smaller. A cap-connection gap would be ≈2.0
+        // (gap² ≈ 4.0), easily caught by this threshold.
+        assert!(
+            max_gap_sq < 1.5,
+            "gap² = {max_gap_sq}, polygon has a discontinuity"
+        );
+        // Polygon should close: last point ≈ first point
+        let first = pts.first().unwrap();
+        let last = pts.last().unwrap();
+        assert!(
+            (first.0 - last.0).abs() < 1e-10 && (first.1 - last.1).abs() < 1e-10,
+            "polygon not closed: first={first:?}, last={last:?}"
+        );
     }
 
     #[test]
@@ -350,5 +399,154 @@ mod tests {
             )
             .is_empty()
         );
+    }
+
+    #[test]
+    fn overlap_zero_extension_matches_no_extension() {
+        let with_zero = expand_path_to_polygon(
+            &[(0.0, 0.0), (10.0, 0.0)],
+            1.0,
+            PathType::Overlap,
+            0.0,
+            0.0,
+            8,
+        );
+        let without = expand_path_to_polygon(
+            &[(0.0, 0.0), (10.0, 0.0)],
+            1.0,
+            PathType::Square,
+            0.0,
+            0.0,
+            8,
+        );
+        insta::assert_debug_snapshot!(with_zero, @r"
+        [
+            (
+                0.0,
+                1.0,
+            ),
+            (
+                10.0,
+                1.0,
+            ),
+            (
+                10.0,
+                -1.0,
+            ),
+            (
+                0.0,
+                -1.0,
+            ),
+        ]
+        ");
+        assert_eq!(with_zero, without);
+    }
+
+    #[test]
+    fn overlap_extension_polygon_is_contiguous() {
+        let pts = expand_path_to_polygon(
+            &[(0.0, 0.0), (5.0, 0.0), (10.0, 0.0)],
+            1.0,
+            PathType::Overlap,
+            2.0,
+            3.0,
+            8,
+        );
+        // Extended polygon should span from x=-2 to x=13, with no gaps at segment joins
+        insta::assert_debug_snapshot!(pts, @r"
+        [
+            (
+                -2.0,
+                1.0,
+            ),
+            (
+                5.0,
+                1.0,
+            ),
+            (
+                13.0,
+                1.0,
+            ),
+            (
+                13.0,
+                -1.0,
+            ),
+            (
+                5.0,
+                -1.0,
+            ),
+            (
+                -2.0,
+                -1.0,
+            ),
+        ]
+        ");
+    }
+
+    #[test]
+    fn overlap_diagonal_extensions() {
+        let pts = expand_path_to_polygon(
+            &[(0.0, 0.0), (10.0, 10.0)],
+            1.0,
+            PathType::Overlap,
+            2.0,
+            3.0,
+            8,
+        );
+        assert_eq!(pts.len(), 4);
+        // Begin extends backward along (−1/√2, −1/√2) by 2
+        // End extends forward along (1/√2, 1/√2) by 3
+        // Normal is (−1/√2, 1/√2), so left offset adds normal, right subtracts
+        let s = 1.0 / 2.0_f64.sqrt();
+        let begin = (-2.0 * s, -2.0 * s);
+        let end = (10.0 + 3.0 * s, 10.0 + 3.0 * s);
+        // left[0] = begin + normal * hw
+        assert!((pts[0].0 - (begin.0 - s)).abs() < 1e-10);
+        assert!((pts[0].1 - (begin.1 + s)).abs() < 1e-10);
+        // left[1] = end + normal * hw
+        assert!((pts[1].0 - (end.0 - s)).abs() < 1e-10);
+        assert!((pts[1].1 - (end.1 + s)).abs() < 1e-10);
+    }
+
+    #[test]
+    fn square_ignores_extensions() {
+        let with_ext = expand_path_to_polygon(
+            &[(0.0, 0.0), (10.0, 0.0)],
+            1.0,
+            PathType::Square,
+            5.0,
+            5.0,
+            8,
+        );
+        let without_ext = expand_path_to_polygon(
+            &[(0.0, 0.0), (10.0, 0.0)],
+            1.0,
+            PathType::Square,
+            0.0,
+            0.0,
+            8,
+        );
+        assert_eq!(with_ext, without_ext);
+    }
+
+    #[test]
+    fn round_ignores_extensions() {
+        let with_ext = expand_path_to_polygon(
+            &[(0.0, 0.0), (10.0, 0.0)],
+            1.0,
+            PathType::Round,
+            5.0,
+            5.0,
+            8,
+        );
+        let without_ext = expand_path_to_polygon(
+            &[(0.0, 0.0), (10.0, 0.0)],
+            1.0,
+            PathType::Round,
+            0.0,
+            0.0,
+            8,
+        );
+        assert_eq!(with_ext, without_ext);
     }
 }
